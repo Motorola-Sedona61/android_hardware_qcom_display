@@ -37,12 +37,15 @@
 #include <aidlcommonsupport/NativeHandle.h>
 
 #include <string>
+#include <thread>
 
+#include "QtiAllocator.h"
 #include "QtiAllocatorAIDL.h"
 
 using android::hardware::configureRpcThreadpool;
 using android::hardware::joinRpcThreadpool;
 using aidl::android::hardware::graphics::allocator::impl::QtiAllocatorAIDL;
+using IQtiAllocator4 = vendor::qti::hardware::display::allocator::V4_0::IQtiAllocator;
 
 int main(int, char **) {
   // same as SF main thread
@@ -68,6 +71,18 @@ int main(int, char **) {
     return EXIT_FAILURE;
   }
   ALOGI("Initialized QTI Allocator AIDL");
+
+  // Camera HALs built against the HIDL gralloc still look up IQtiAllocator
+  // 4.0 to reach the QTI mapper extensions, so serve it from here as well.
+  configureRpcThreadpool(4, true /*callerWillJoin*/);
+  android::sp<IQtiAllocator4> service4 =
+      new vendor::qti::hardware::display::allocator::V4_0::implementation::QtiAllocator();
+  if (service4->registerAsService() != android::OK) {
+    ALOGE("Cannot register QTI Allocator 4 service");
+  } else {
+    ALOGI("Initialized qti-allocator 4");
+    std::thread([] { joinRpcThreadpool(); }).detach();
+  }
 
   ABinderProcess_setThreadPoolMaxThreadCount(4);
   ABinderProcess_startThreadPool();
