@@ -415,6 +415,17 @@ int GetBpp(int format) {
 }
 
 // Returns the final buffer size meant to be allocated with ion
+// The blair CamX/CHI blobs write NV12 with the Venus 512 layout (Y stride and
+// scanlines aligned to 512, UV scanlines to 256), as the stock gralloc
+// allocates YCbCr_420_SP_VENUS and NV12_ENCODEABLE. Describe camera-written
+// buffers the same way, or consumers read the UV plane from Y padding.
+static unsigned int GetVenusNV12ColorFormat(uint64_t usage) {
+  if ((usage & GRALLOC_USAGE_PRIVATE_HEIF) || (usage & BufferUsage::CAMERA_OUTPUT)) {
+    return MMM_COLOR_FMT_NV12_512;
+  }
+  return MMM_COLOR_FMT_NV12;
+}
+
 unsigned int GetSize(const BufferInfo &info, unsigned int alignedw, unsigned int alignedh) {
   unsigned int size = 0;
   int format = info.format;
@@ -510,7 +521,7 @@ unsigned int GetSize(const BufferInfo &info, unsigned int alignedw, unsigned int
       case HAL_PIXEL_FORMAT_YCbCr_420_SP_VENUS:
       case HAL_PIXEL_FORMAT_NV12_ENCODEABLE:
         mmm_color_format =
-            (usage & GRALLOC_USAGE_PRIVATE_HEIF) ? MMM_COLOR_FMT_NV12_512 : MMM_COLOR_FMT_NV12;
+            GetVenusNV12ColorFormat(usage);
         size = MMM_COLOR_FMT_BUFFER_SIZE(mmm_color_format, width, height);
         break;
       case HAL_PIXEL_FORMAT_YCrCb_420_SP_VENUS:
@@ -686,7 +697,7 @@ void GetYuvSPPlaneInfo(const BufferInfo &info, int format, uint32_t width, uint3
     case HAL_PIXEL_FORMAT_YCbCr_420_SP_VENUS:
     case HAL_PIXEL_FORMAT_NV12_ENCODEABLE:
       mmm_color_format =
-          (info.usage & GRALLOC_USAGE_PRIVATE_HEIF) ? MMM_COLOR_FMT_NV12_512 : MMM_COLOR_FMT_NV12;
+          GetVenusNV12ColorFormat(info.usage);
       c_height = MMM_COLOR_FMT_UV_SCANLINES(mmm_color_format, height);
       y_height = MMM_COLOR_FMT_Y_SCANLINES(mmm_color_format, height);
       y_size = y_stride * y_height;
@@ -1378,7 +1389,7 @@ int GetAlignedWidthAndHeight(const BufferInfo &info, unsigned int *alignedw,
     case HAL_PIXEL_FORMAT_YCbCr_420_SP_VENUS:
     case HAL_PIXEL_FORMAT_NV12_ENCODEABLE:
       mmm_color_format =
-          (usage & GRALLOC_USAGE_PRIVATE_HEIF) ? MMM_COLOR_FMT_NV12_512 : MMM_COLOR_FMT_NV12;
+          GetVenusNV12ColorFormat(usage);
       aligned_w = INT(MMM_COLOR_FMT_Y_STRIDE(mmm_color_format, width));
       aligned_h = INT(MMM_COLOR_FMT_Y_SCANLINES(mmm_color_format, height));
       break;
